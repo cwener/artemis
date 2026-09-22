@@ -1,0 +1,45 @@
+artemis/agents/flash/summarizer.py
+  86cfe4754e7d2a64 38,169,172,174-177
+artemis/memory/chunking.py
+  86cfe4754e7d2a64 48,326,331,334-349
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "d478536e8807b391745d27d83c290c6e9690ee7d",
+  "prompts": {
+    "86cfe4754e7d2a64": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6fafc414-ad65-405c-b14f-6c1ee07b52d7",
+        "model": "deepseek-flash"
+      },
+      "human_author": "chengwen",
+      "messages": [],
+      "total_additions": 80,
+      "total_deletions": 27,
+      "accepted_lines": 39,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "config/artemis.jsonc": {
+          "additions": 12,
+          "deletions": 12,
+          "accepted_lines": 12
+        },
+        "_dbg_model.py": {
+          "additions": 38
+        },
+        "artemis/memory/chunking.py": {
+          "additions": 23,
+          "deletions": 12,
+          "accepted_lines": 20
+        },
+        "artemis/agents/flash/summarizer.py": {
+          "additions": 7,
+          "deletions": 3,
+          "accepted_lines": 7
+        }
+      }
+    }
+  }
+}
