@@ -762,6 +762,27 @@ class RobustChatModelWrapper:
                     {"endpoint": endpoint_key, "error": str(stream_error)[:500]},
                 )
                 return await self.base_model.ainvoke(*args, **kwargs)
+            # Nothing has been emitted yet, so replaying the call is safe. A
+            # stream that dies before its first chunk is a gateway protocol
+            # glitch rather than a model problem: this gateway intermittently
+            # emits an empty SSE frame and the OpenAI SDK's own parser raises
+            # JSONDecodeError ("Expecting value: line 1 column 1") on it.
+            # Re-running the same streaming call reproduces it, and letting the
+            # failure escape burns the recovery budget until the run parks on a
+            # resume signal — so remember the endpoint the same way the
+            # unsupported-stream case above does, and use the non-streaming
+            # path (which returns the very same completion) from here on.
+            if full_response is None:
+                _NON_STREAMING_ENDPOINTS.add(endpoint_key)
+                llm_logger.warning(
+                    f"Endpoint {endpoint_key} stream failed before its first chunk"
+                    f" ({stream_error}); switching to non-streaming calls."
+                )
+                _record_llm_event(
+                    "llm_stream_fallback",
+                    {"endpoint": endpoint_key, "error": str(stream_error)[:500]},
+                )
+                return await self.base_model.ainvoke(*args, **kwargs)
             raise
         if full_response is None:
             llm_logger.warning("LLM stream yielded no chunks; using non-streaming call.")

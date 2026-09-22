@@ -75,10 +75,10 @@
     // To achieve accurate [x, y] point and bounding box localization, this node MUST use specialized Gemini ER (Embodied Reasoning / Robotics) models:
     // e.g., "gemini-robotics-er-2-preview". Non-ER models will fail spatial coordinate detection.
     "object_detector": {
-      "model": "glm-5.3-flash",
+      "model": "deepseek-flash",
       "fallback": {
         "provider": "openai",
-        "model": "deepseek-flash"
+        "model": "glm-5.3-flash"
       }
     },
 
@@ -94,7 +94,13 @@
     "summarizer": {},
 
     // 🔽 Hopper: Fast lightweight package name locator
-    // Structured-output role (with_structured_output(HopperOutput)): glm-5.3-flash.
+    // Structured-output role (with_structured_output(HopperOutput)). This MUST
+    // stay on glm-5.3-flash: measured 2026-09-22, deepseek-flash answers every
+    // method variant with HTTP 500 ("upstream HTTP 400: supplier response
+    // failed") — `None`/default, function_calling, json_mode and json_schema
+    // alike. Pinning the dialect in RobustChatModelWrapper does not rescue it.
+    // The wrapper retries the 500 until the budget is gone and the run then
+    // pauses waiting for a resume signal, so the failure looks like a hang.
     "hopper": {
       "model": "glm-5.3-flash",
       "fallback": {
@@ -104,9 +110,7 @@
     },
 
     // 📝 Outputter: Synthesizes execution trace into final output report
-    // Structured-output role: uses llm.with_structured_output(), which forces
-    // tool_choice. The gateway rejects that for deepseek-flash (HTTP 500), so
-    // this node stays on glm-5.3-flash.
+    // Structured-output role — same hard constraint as the hopper above.
     "outputter": {
       "model": "glm-5.3-flash",
       "fallback": {
@@ -132,12 +136,21 @@
     "checker": {
       "thinking_level": "medium",
       "include_thoughts": true,
-      // Structured-output role (_structured_report -> with_structured_output):
-      // stays on glm-5.3-flash for the same reason as the outputter.
+      // Structured-output role, but `_structured_report` deliberately does NOT
+      // call with_structured_output: it spells the schema out in the prompt and
+      // parses the reply tolerantly (acomplete_structured), so the 500s that
+      // block the hopper/outputter do not apply here.
+      //
+      // Isolated A/B, 2026-09-22: deepseek-flash returns a valid CheckReport
+      // 3/3 in ~2.3s against glm's 3/3 in 10-15s. It is nevertheless left on
+      // glm: in a full Pro run every deepseek call site (this one included)
+      // intermittently hit the gateway's empty-SSE-frame glitch, and the run
+      // parked on a resume signal. The isolated win did not survive contact
+      // with the whole graph. Revisit if the gateway's streaming stabilises.
       "model": "glm-5.3-flash",
       "fallback": {
         "provider": "openai",
-        "model": "deepseek-flash"
+        "model": "glm-5.3-flash"
       }
     },
     // 🎯 Planner Validation + Pixel Safety Net.
@@ -145,9 +158,9 @@
     // flash-lite) unless a `nodes` entry exists for them — upstream they were
     // missing from the node whitelist, so any entry here was silently dropped.
     // Both are now listed, so a non-Gemini deployment can route them.
-    // planner_validation emits a structured report (forced tool calling):
-    // glm-5.3-flash. The pixel safety net parses plain JSON via
-    // acomplete_structured, so it takes the fast model.
+    // planner_validation goes through with_structured_output, so it carries the
+    // same deepseek-flash constraint as the hopper/outputter above. It is
+    // disabled anyway (see agent.pro.planner_validation).
     "planner_validation": {
       "model": "glm-5.3-flash",
       "fallback": { "provider": "openai", "model": "deepseek-flash" }
