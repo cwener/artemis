@@ -510,6 +510,7 @@ class VisualStepSummarizer(StepMemoryService):
 
         except Exception as e:
             logger.warning(
-                f"VisualStepSummarizer: Error generating summary for step {step_number}: {e}"
+                f"VisualStepSummarizer: Error generating summary for step {step_number}"
+                f" [{type(e).__name__}]: {e}"
             )
         return False

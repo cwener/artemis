@@ -209,7 +209,13 @@ class StepMemoryService:
         try:
             summary = await self._lens.render(key, payload)
         except Exception as e:
-            logger.warning(f"StepMemoryService: lens '{self._lens.name}' attempt failed: {e}")
+            # Name the exception type: several of the failures this catches are
+            # TimeoutError / CancelledError, whose str() is empty — an unnamed
+            # "attempt failed: " with nothing after it is unactionable.
+            logger.warning(
+                f"StepMemoryService: lens '{self._lens.name}' attempt failed"
+                f" [{type(e).__name__}]: {e}"
+            )
             return False
         if not summary:
             return False
