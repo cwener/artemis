@@ -260,6 +260,12 @@ def _expand_default_into_nodes(config_dict: dict) -> dict:
         "history_analyzer_expert",
         "diagnoser_expert",
         "explorer",
+        # Both used to be reachable only through `lightweight_judge_default()`
+        # (hard-wired to a Gemini flash-lite model) because they were missing
+        # from this list: a `nodes` entry for either name was silently dropped,
+        # so a non-Gemini deployment could not point them at a working model.
+        "planner_validation",
+        "validator_pixel_safety_net",
     ]
 
     all_utils_nodes = [

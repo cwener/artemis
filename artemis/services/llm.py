@@ -45,7 +45,7 @@ from artemis.config import (
 )
 from artemis.context import ArtemisContext
 from artemis.data_engine.trace import CURRENT_TRACE_ID, DataEngineCallbackHandler
-from artemis.llm.google import is_google_chat_model, is_google_provider
+from artemis.llm.google import is_gemini_model, is_google_chat_model, is_google_provider
 from artemis.llm.reliability import (
     CircuitBreaker,
     FailureCategory,
@@ -523,6 +523,19 @@ def _inject_parent_trace_id(trace_id, *args, **kwargs):
     return args, kwargs
 
 
+def _is_openai_compatible_chat_model(model: Any) -> bool:
+    """True for the models that ride the OpenAI-compatible client.
+
+    That is the `openai` provider plus the endpoint providers (`vllm`,
+    `ollama`, `custom`) — every one of them is built as a ``ChatOpenAI``.
+    """
+    try:
+        from langchain_openai import ChatOpenAI
+    except ImportError:
+        return False
+    return isinstance(model, ChatOpenAI)
+
+
 class RobustChatModelWrapper:
     """Universal LangChain Runnable wrapper ensuring robust execution and telemetry."""
 
@@ -597,6 +610,15 @@ class RobustChatModelWrapper:
 
     def with_structured_output(self, *args, **kwargs):
         if hasattr(self.base_model, "with_structured_output"):
+            # langchain-openai defaults this to `json_schema`. OpenAI-compatible
+            # gateways commonly reject `response_format: json_schema` — some with
+            # an HTTP 500, others by answering with an empty object that still
+            # parses into a schema-shaped model carrying no data, so callers see
+            # a valid-but-empty result instead of an error (that is how an
+            # all-inconclusive checker report can look like a clean run).
+            # `function_calling` is the dialect they all implement, so pin it.
+            if "method" not in kwargs and _is_openai_compatible_chat_model(self.base_model):
+                kwargs["method"] = "function_calling"
             return RobustChatModelWrapper(
                 self.base_model.with_structured_output(*args, **kwargs),
                 self.ctx,
@@ -878,6 +900,7 @@ async def invoke_llm_with_timeout_message[T](
 
         user_messages_logger.info("Waiting for LLM call response...")
         start_time = asyncio.get_event_loop().time()
+        paused_for = 0.0
 
         while True:
             try:
@@ -888,7 +911,25 @@ async def invoke_llm_with_timeout_message[T](
 
                 pause_file = PAUSE_FILE
                 if pause_file.exists():
+                    # A paused endpoint is being resumed interactively, so the
+                    # wait should not count against this call's own budget.
+                    # It must not unbound the call either: a pause file left
+                    # behind by an interrupted run used to reset the clock on
+                    # every tick, so the hard timeout never fired and the call
+                    # sat until whatever wrapped it gave up.
+                    paused_for += 1.0
                     start_time = asyncio.get_event_loop().time()
+                    pause_budget = float(
+                        getattr(settings, "LLM_PAUSE_TIMEOUT_SECONDS", 0.0) or 0.0
+                    )
+                    if pause_budget > 0 and paused_for >= pause_budget:
+                        user_messages_logger.error(
+                            f"LLM call stayed paused for {paused_for:.0f}s without a"
+                            " resume signal; giving up."
+                        )
+                        raise TimeoutError(
+                            f"LLM call paused for {paused_for:.0f}s without a resume signal."
+                        )
                     continue
 
                 elapsed = asyncio.get_event_loop().time() - start_time
@@ -907,6 +948,34 @@ async def invoke_llm_with_timeout_message[T](
 
 
 # Backward compatible factory functions delegating to ModelFactory
+def get_lens_llm(ctx: Any, model_name: str, role: str = "summarizer") -> BaseChatModel:
+    """Builds the model for one memory lens (step summarizer, chunk capsule).
+
+    Lens payloads are small and high-frequency, so they run on a cheap model
+    that is configured separately from the agent that owns them. Gemini names
+    keep the raw ``get_google_llm`` path; anything else is built from the
+    provider configured for ``role`` combined with ``model_name``, so the
+    lens honours the model it was handed instead of the role's own default.
+    """
+    if is_gemini_model(model_name):
+        return get_google_llm(model_name=model_name, temperature=0.0)
+
+    provider = ModelProvider.GOOGLE
+    try:
+        role_cfg = getattr(getattr(ctx, "llm_config", None), role, None)
+        configured = getattr(role_cfg, "provider", None)
+        if configured:
+            provider = ModelProvider.from_string(str(configured))
+    except Exception as exc:
+        user_messages_logger.debug(
+            f"Lens provider resolution skipped for role {role!r}: {exc}", exc_info=True
+        )
+
+    return ModelFactory.create_model(
+        ModelEndpoint(provider=provider, model_name=model_name, temperature=0.0)
+    )
+
+
 def get_google_llm(
     model_name: str = "gemini-3.8-flash",
     temperature: float | None = None,

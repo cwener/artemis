@@ -323,19 +323,26 @@ class StepCapsuleLens(StepLens):
 
     def _get_llm(self):
         if self._llm is None:
-            from artemis.services.llm import get_google_llm
-
-            self._llm = get_google_llm(model_name=self._model_name, temperature=0.0)
+            self._llm = self._build_lens_llm(self._model_name)
         return self._llm
 
     def _get_fallback_llm(self):
         if self._fallback_llm is None and self._fallback_model_name:
-            from artemis.services.llm import get_google_llm
-
-            self._fallback_llm = get_google_llm(
-                model_name=self._fallback_model_name, temperature=0.0
-            )
+            self._fallback_llm = self._build_lens_llm(self._fallback_model_name)
         return self._fallback_llm
+
+    def _build_lens_llm(self, model_name: str):
+        """Builds the capsule lens model for ``model_name``.
+
+        The lens used to ride the raw ``get_google_llm`` path unconditionally,
+        which made every non-Gemini configuration fail at the first chunk
+        close. :func:`~artemis.services.llm.get_lens_llm` keeps Gemini names on
+        that path and builds everything else from the summarizer role's
+        provider, so ``chunking.model`` still selects the model.
+        """
+        from artemis.services.llm import get_lens_llm
+
+        return get_lens_llm(self._ctx, model_name)
 
     @property
     def has_fallback(self) -> bool:

@@ -7,12 +7,12 @@
   // 1. Global Default Model (Applied to all sub-agents unless overridden below)
   // ------------------------------------------------------------------------------
   "default": {
-    "provider": "google",
-    "model": "gemini-3.8-flash",
+    "provider": "openai",
+    "model": "deepseek-flash",
     "thinking_level": "medium",
     "fallback": {
-      "provider": "google",
-      "model": "gemini-3.7-flash",
+      "provider": "openai",
+      "model": "glm-5.3-flash",
       "thinking_level": "medium"
     }
   },
@@ -75,10 +75,10 @@
     // To achieve accurate [x, y] point and bounding box localization, this node MUST use specialized Gemini ER (Embodied Reasoning / Robotics) models:
     // e.g., "gemini-robotics-er-2-preview". Non-ER models will fail spatial coordinate detection.
     "object_detector": {
-      "model": "gemini-robotics-er-2-preview",
+      "model": "glm-5.3-flash",
       "fallback": {
-        "provider": "google",
-        "model": "gemini-robotics-er-2-preview"
+        "provider": "openai",
+        "model": "deepseek-flash"
       }
     },
 
@@ -94,16 +94,26 @@
     "summarizer": {},
 
     // 🔽 Hopper: Fast lightweight package name locator
+    // Structured-output role (with_structured_output(HopperOutput)): glm-5.3-flash.
     "hopper": {
-      "model": "gemini-3.5-flash-lite",
+      "model": "glm-5.3-flash",
       "fallback": {
-        "provider": "google",
-        "model": "gemini-3.1-flash-lite"
+        "provider": "openai",
+        "model": "deepseek-flash"
       }
     },
 
     // 📝 Outputter: Synthesizes execution trace into final output report
-    "outputter": {},
+    // Structured-output role: uses llm.with_structured_output(), which forces
+    // tool_choice. The gateway rejects that for deepseek-flash (HTTP 500), so
+    // this node stays on glm-5.3-flash.
+    "outputter": {
+      "model": "glm-5.3-flash",
+      "fallback": {
+        "provider": "openai",
+        "model": "deepseek-flash"
+      }
+    },
 
     // 🪵 Log Analyzer: Error log diagnosis with search grounding
     "log_analyzer": {
@@ -121,11 +131,31 @@
     // Thoughts are streamed so the verifier's reasoning shows live in the timeline.
     "checker": {
       "thinking_level": "medium",
-      "include_thoughts": true
+      "include_thoughts": true,
+      // Structured-output role (_structured_report -> with_structured_output):
+      // stays on glm-5.3-flash for the same reason as the outputter.
+      "model": "glm-5.3-flash",
+      "fallback": {
+        "provider": "openai",
+        "model": "deepseek-flash"
+      }
+    },
+    // 🎯 Planner Validation + Pixel Safety Net.
+    // These two resolve through `lightweight_judge_default()` (a Gemini
+    // flash-lite) unless a `nodes` entry exists for them — upstream they were
+    // missing from the node whitelist, so any entry here was silently dropped.
+    // Both are now listed, so a non-Gemini deployment can route them.
+    // planner_validation emits a structured report (forced tool calling):
+    // glm-5.3-flash. The pixel safety net parses plain JSON via
+    // acomplete_structured, so it takes the fast model.
+    "planner_validation": {
+      "model": "glm-5.3-flash",
+      "fallback": { "provider": "openai", "model": "deepseek-flash" }
+    },
+    "validator_pixel_safety_net": {
+      "model": "deepseek-flash",
+      "fallback": { "provider": "openai", "model": "glm-5.3-flash" }
     }
-    // 🎯 Planner Validation: Advisory review of milestone changes.
-    // Defaults to the same lightweight model as the pixel safety net
-    // (gemini-3.5-flash-lite, temperature 0); add "planner_validation": {...} here to override.
   },
 
   // ------------------------------------------------------------------------------
@@ -145,7 +175,7 @@
       // replacing images only after strictly objective, high-density summaries are ready.
       "step_summarizer": {
         "enabled": true, // Whether background step summarization is active
-        "model": "gemini-3.5-flash-lite", // Lightweight model for fast background inference
+        "model": "deepseek-flash", // Lightweight model for fast background inference
         "prune_history_xml": true // Prune outdated heavy XML trees from historical steps
       }
     },
@@ -162,7 +192,7 @@
       },
       // 🎯 Planner Validation: Async verification when task plan milestones change
       "planner_validation": {
-        "enabled": true // On by default: every milestone text change is reviewed (advisory: hint + reason only, never rolled back)
+        "enabled": false // 结构化输出角色，网关模型无法稳定满足 ValidationResult schema；advisory-only，关了不影响流程
       },
       // 🏛️ Committee: Multi-Agent Council debate tool for Operator
       "committee": {
@@ -178,7 +208,14 @@
         "final_check_max_attempts": 3,
         "checkpoint_max_repairs": 2,
         "max_concurrent_checkpoints": 3,
-        "checkpoint_timeout": 180.0,
+        // The Checker is a structured-output role and therefore runs on
+        // glm-5.3-flash, which is several times slower per call than the
+        // deepseek-flash used elsewhere. Its ReAct loop plus the final
+        // structured report does not fit in the 180s Gemini-tuned budget:
+        // the whole run_final_check is wrapped in this timeout, so an
+        // overrun is swallowed as an empty-message TimeoutError and released
+        // fail-open with every check item booked inconclusive.
+        "checkpoint_timeout": 600.0,
         "settlement_timeout": 120.0,
         "assert_failure_policy": "continue", // 'continue' or 'halt' on assert failures
         "device_probes": true // Checker's enumerated read-only device probes
@@ -246,7 +283,7 @@
         // call each); milestone closes are exempt, the hard line waives it.
         "min_steps": 3,
         "target_source_tokens": 2000,
-        "model": "gemini-3.8-flash",
+        "model": "deepseek-flash",
         "max_chunks": 8
         // "max_eras": 8 // independent era cap; omitted = follows max_chunks
       },
