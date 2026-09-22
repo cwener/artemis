@@ -1,0 +1,37 @@
+artemis/memory/step_memory.py
+  86cfe4754e7d2a64 212-218
+artemis/agents/flash/summarizer.py
+  86cfe4754e7d2a64 513-514
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "9298b5c4c6fa6fd17f812ac7ce09f804040af886",
+  "prompts": {
+    "86cfe4754e7d2a64": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6fafc414-ad65-405c-b14f-6c1ee07b52d7",
+        "model": "deepseek-flash"
+      },
+      "human_author": "chengwen",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 2,
+      "accepted_lines": 9,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "artemis/agents/flash/summarizer.py": {
+          "additions": 2,
+          "deletions": 1,
+          "accepted_lines": 2
+        },
+        "artemis/memory/step_memory.py": {
+          "additions": 7,
+          "deletions": 1,
+          "accepted_lines": 7
+        }
+      }
+    }
+  }
+}
