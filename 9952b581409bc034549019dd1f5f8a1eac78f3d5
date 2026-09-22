@@ -1,0 +1,37 @@
+config/artemis.jsonc
+  86cfe4754e7d2a64 78,81,97-103,113,139-149,153,161-163
+artemis/services/llm.py
+  86cfe4754e7d2a64 765-785
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "9952b581409bc034549019dd1f5f8a1eac78f3d5",
+  "prompts": {
+    "86cfe4754e7d2a64": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6fafc414-ad65-405c-b14f-6c1ee07b52d7",
+        "model": "deepseek-flash"
+      },
+      "human_author": "chengwen",
+      "messages": [],
+      "total_additions": 105,
+      "total_deletions": 71,
+      "accepted_lines": 54,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "config/artemis.jsonc": {
+          "additions": 57,
+          "deletions": 44,
+          "accepted_lines": 32
+        },
+        "artemis/services/llm.py": {
+          "additions": 48,
+          "deletions": 27,
+          "accepted_lines": 22
+        }
+      }
+    }
+  }
+}
