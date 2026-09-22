@@ -1,0 +1,28 @@
+config/artemis.jsonc
+  86cfe4754e7d2a64 11,15,98,101,148,249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "09c0cda6721a011a49b51fde0fae654c6c74a079",
+  "prompts": {
+    "86cfe4754e7d2a64": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6fafc414-ad65-405c-b14f-6c1ee07b52d7",
+        "model": "deepseek-flash"
+      },
+      "human_author": "chengwen",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 8,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "config/artemis.jsonc": {
+          "accepted_lines": 8
+        }
+      }
+    }
+  }
+}
