@@ -523,6 +523,19 @@ def _inject_parent_trace_id(trace_id, *args, **kwargs):
     return args, kwargs
 
 
+def _is_openai_compatible_chat_model(model: Any) -> bool:
+    """True for the models that ride the OpenAI-compatible client.
+
+    That is the `openai` provider plus the endpoint providers (`vllm`,
+    `ollama`, `custom`) — every one of them is built as a ``ChatOpenAI``.
+    """
+    try:
+        from langchain_openai import ChatOpenAI
+    except ImportError:
+        return False
+    return isinstance(model, ChatOpenAI)
+
+
 class RobustChatModelWrapper:
     """Universal LangChain Runnable wrapper ensuring robust execution and telemetry."""
 
@@ -597,6 +610,15 @@ class RobustChatModelWrapper:
 
     def with_structured_output(self, *args, **kwargs):
         if hasattr(self.base_model, "with_structured_output"):
+            # langchain-openai defaults this to `json_schema`. OpenAI-compatible
+            # gateways commonly reject `response_format: json_schema` — some with
+            # an HTTP 500, others by answering with an empty object that still
+            # parses into a schema-shaped model carrying no data, so callers see
+            # a valid-but-empty result instead of an error (that is how an
+            # all-inconclusive checker report can look like a clean run).
+            # `function_calling` is the dialect they all implement, so pin it.
+            if "method" not in kwargs and _is_openai_compatible_chat_model(self.base_model):
+                kwargs["method"] = "function_calling"
             return RobustChatModelWrapper(
                 self.base_model.with_structured_output(*args, **kwargs),
                 self.ctx,
@@ -878,6 +900,7 @@ async def invoke_llm_with_timeout_message[T](
 
         user_messages_logger.info("Waiting for LLM call response...")
         start_time = asyncio.get_event_loop().time()
+        paused_for = 0.0
 
         while True:
             try:
@@ -888,7 +911,25 @@ async def invoke_llm_with_timeout_message[T](
 
                 pause_file = PAUSE_FILE
                 if pause_file.exists():
+                    # A paused endpoint is being resumed interactively, so the
+                    # wait should not count against this call's own budget.
+                    # It must not unbound the call either: a pause file left
+                    # behind by an interrupted run used to reset the clock on
+                    # every tick, so the hard timeout never fired and the call
+                    # sat until whatever wrapped it gave up.
+                    paused_for += 1.0
                     start_time = asyncio.get_event_loop().time()
+                    pause_budget = float(
+                        getattr(settings, "LLM_PAUSE_TIMEOUT_SECONDS", 0.0) or 0.0
+                    )
+                    if pause_budget > 0 and paused_for >= pause_budget:
+                        user_messages_logger.error(
+                            f"LLM call stayed paused for {paused_for:.0f}s without a"
+                            " resume signal; giving up."
+                        )
+                        raise TimeoutError(
+                            f"LLM call paused for {paused_for:.0f}s without a resume signal."
+                        )
                     continue
 
                 elapsed = asyncio.get_event_loop().time() - start_time

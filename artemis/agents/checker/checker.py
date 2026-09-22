@@ -49,7 +49,12 @@ from artemis.constants import CHECKER_MAX_ITERATIONS
 from artemis.context import ArtemisContext
 from artemis.data_engine.context_vars import CURRENT_TRACE_ID
 from artemis.data_engine.trace import trace, trace_langchain_tool
-from artemis.services.llm import acomplete, get_llm, invoke_llm_with_timeout_message
+from artemis.services.llm import (
+    acomplete,
+    acomplete_structured,
+    get_llm,
+    invoke_llm_with_timeout_message,
+)
 from artemis.tools.history import get_history_tools
 from artemis.tools.scratchpad import get_read_note_tool_pure
 from artemis.tools.tool_wrapper import (
@@ -408,7 +413,6 @@ def _format_check_items(check_items: list) -> str:
 
 
 async def _structured_report(llm, messages) -> CheckReport:
-    structured_llm = llm.with_structured_output(CheckReport)
     # A conversation must end with a user turn: Gemini rejects requests whose
     # last message is the model's own answer ("Requests ending with a model
     # turn are not supported"), which is exactly the state after the loop's
@@ -418,14 +422,37 @@ async def _structured_report(llm, messages) -> CheckReport:
             *messages,
             HumanMessage(content="Now provide your structured verdict report."),
         ]
-    result = await invoke_llm_with_timeout_message(structured_llm.ainvoke(messages))
+
+    # The verdict is requested as plain JSON with the schema spelled out and
+    # parsed by the tolerant reader (which repairs, then re-asks once), rather
+    # than through `llm.with_structured_output`. That path forces a tool call,
+    # and the OpenAI-compatible gateways this runs against implement the
+    # dialect only partly: one model answers 5xx to the forced choice, the
+    # other returns a schema-shaped but empty object or fills the wrong
+    # fields. Either way the caller used to fall through to an empty report,
+    # which `_normalize_report` turns into "every check item inconclusive"
+    # while the run still reports success — a verification that verified
+    # nothing, indistinguishable from a clean pass in the run outcome.
+    schema_hint = HumanMessage(
+        content=(
+            "Reply with one JSON object and nothing else — no prose, no code"
+            " fences. It must validate against this JSON schema:\n"
+            f"{json.dumps(CheckReport.model_json_schema())}"
+        )
+    )
+    try:
+        result = await invoke_llm_with_timeout_message(
+            acomplete_structured(llm, [*messages, schema_hint], schema=CheckReport)
+        )
+    except Exception as exc:
+        logger.warning(f"Structured verdict unavailable: {exc}")
+        return CheckReport(verdicts=[])
+
     if isinstance(result, CheckReport):
+        if not result.verdicts:
+            logger.warning("Structured verdict parsed but carried no verdicts")
         return result
-    if isinstance(result, dict):
-        try:
-            return CheckReport.model_validate(result)
-        except ValidationError as exc:
-            logger.debug("Structured verdict dict failed CheckReport validation: %s", exc)
+    logger.warning(f"Structured verdict returned {type(result).__name__}")
     return CheckReport(verdicts=[])
 
 
