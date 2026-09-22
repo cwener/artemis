@@ -45,7 +45,7 @@ from uuid import uuid4
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-from artemis.llm.google import is_google_provider
+from artemis.llm.google import is_gemini_model, is_google_provider
 from artemis.memory.step_memory import JobKey, StepLens, StepMemoryService
 from artemis.memory.transcript import format_session_offset
 from artemis.utils.logger import get_logger
@@ -323,19 +323,30 @@ class StepCapsuleLens(StepLens):
 
     def _get_llm(self):
         if self._llm is None:
-            from artemis.services.llm import get_google_llm
-
-            self._llm = get_google_llm(model_name=self._model_name, temperature=0.0)
+            self._llm = self._build_lens_llm(self._model_name)
         return self._llm
 
     def _get_fallback_llm(self):
         if self._fallback_llm is None and self._fallback_model_name:
-            from artemis.services.llm import get_google_llm
-
-            self._fallback_llm = get_google_llm(
-                model_name=self._fallback_model_name, temperature=0.0
-            )
+            self._fallback_llm = self._build_lens_llm(self._fallback_model_name)
         return self._fallback_llm
+
+    def _build_lens_llm(self, model_name: str):
+        """Builds the capsule lens model for ``model_name``.
+
+        The lens used to ride the raw ``get_google_llm`` path unconditionally,
+        which made every non-Gemini configuration fail at the first chunk
+        close. Gemini names keep that path unchanged; anything else goes
+        through the provider-aware service layer, which resolves the
+        ``summarizer`` role (and therefore the configured provider). Note that
+        on that path ``chunking.model`` is advisory: the service layer keys
+        off the node name, not the model string handed in here.
+        """
+        from artemis.services.llm import get_google_llm, get_llm
+
+        if is_gemini_model(model_name):
+            return get_google_llm(model_name=model_name, temperature=0.0)
+        return get_llm(self._ctx, name="summarizer", is_utils=False)
 
     @property
     def has_fallback(self) -> bool:

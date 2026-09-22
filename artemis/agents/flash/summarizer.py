@@ -35,6 +35,7 @@ from jinja2 import Template
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 from artemis.context import ArtemisContext
+from artemis.llm.google import is_gemini_model
 from artemis.memory.step_memory import JobKey, StepMemoryService
 from artemis.services.llm import RobustChatModelWrapper, get_google_llm, get_llm
 from artemis.services.token_meter import record_llm_usage
@@ -165,12 +166,15 @@ class VisualStepSummarizer(StepMemoryService):
         target_model = model_name or "gemini-2.5-flash-lite"
         self._model_name = target_model
         try:
-            if model_name:
+            if is_gemini_model(target_model):
                 self._llm = get_google_llm(model_name=target_model, temperature=0.0)
             else:
-                self._llm = get_llm(ctx, name="summarizer", is_utils=True)
+                self._llm = get_llm(ctx, name="summarizer", is_utils=False)
         except Exception:
-            self._llm = get_google_llm(model_name=target_model, temperature=0.0)
+            if is_gemini_model(target_model):
+                self._llm = get_google_llm(model_name=target_model, temperature=0.0)
+            else:
+                raise
         try:
             configured = getattr(self._llm, "model", None) or getattr(self._llm, "model_name", None)
             if isinstance(configured, str) and configured:
