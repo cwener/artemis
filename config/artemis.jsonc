@@ -8,11 +8,11 @@
   // ------------------------------------------------------------------------------
   "default": {
     "provider": "openai",
-    "model": "glm-5.3-flash",
+    "model": "deepseek-flash",
     "thinking_level": "medium",
     "fallback": {
       "provider": "openai",
-      "model": "deepseek-flash",
+      "model": "glm-5.3-flash",
       "thinking_level": "medium"
     }
   },
@@ -95,10 +95,10 @@
 
     // 🔽 Hopper: Fast lightweight package name locator
     "hopper": {
-      "model": "glm-5.3-flash",
+      "model": "deepseek-flash",
       "fallback": {
         "provider": "openai",
-        "model": "deepseek-flash"
+        "model": "glm-5.3-flash"
       }
     },
 
@@ -145,7 +145,7 @@
       // replacing images only after strictly objective, high-density summaries are ready.
       "step_summarizer": {
         "enabled": true, // Whether background step summarization is active
-        "model": "glm-5.3-flash", // Lightweight model for fast background inference
+        "model": "deepseek-flash", // Lightweight model for fast background inference
         "prune_history_xml": true // Prune outdated heavy XML trees from historical steps
       }
     },
@@ -246,7 +246,7 @@
         // call each); milestone closes are exempt, the hard line waives it.
         "min_steps": 3,
         "target_source_tokens": 2000,
-        "model": "glm-5.3-flash",
+        "model": "deepseek-flash",
         "max_chunks": 8
         // "max_eras": 8 // independent era cap; omitted = follows max_chunks
       },
