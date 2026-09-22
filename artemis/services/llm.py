@@ -45,7 +45,7 @@ from artemis.config import (
 )
 from artemis.context import ArtemisContext
 from artemis.data_engine.trace import CURRENT_TRACE_ID, DataEngineCallbackHandler
-from artemis.llm.google import is_google_chat_model, is_google_provider
+from artemis.llm.google import is_gemini_model, is_google_chat_model, is_google_provider
 from artemis.llm.reliability import (
     CircuitBreaker,
     FailureCategory,
@@ -907,6 +907,34 @@ async def invoke_llm_with_timeout_message[T](
 
 
 # Backward compatible factory functions delegating to ModelFactory
+def get_lens_llm(ctx: Any, model_name: str, role: str = "summarizer") -> BaseChatModel:
+    """Builds the model for one memory lens (step summarizer, chunk capsule).
+
+    Lens payloads are small and high-frequency, so they run on a cheap model
+    that is configured separately from the agent that owns them. Gemini names
+    keep the raw ``get_google_llm`` path; anything else is built from the
+    provider configured for ``role`` combined with ``model_name``, so the
+    lens honours the model it was handed instead of the role's own default.
+    """
+    if is_gemini_model(model_name):
+        return get_google_llm(model_name=model_name, temperature=0.0)
+
+    provider = ModelProvider.GOOGLE
+    try:
+        role_cfg = getattr(getattr(ctx, "llm_config", None), role, None)
+        configured = getattr(role_cfg, "provider", None)
+        if configured:
+            provider = ModelProvider.from_string(str(configured))
+    except Exception as exc:
+        user_messages_logger.debug(
+            f"Lens provider resolution skipped for role {role!r}: {exc}", exc_info=True
+        )
+
+    return ModelFactory.create_model(
+        ModelEndpoint(provider=provider, model_name=model_name, temperature=0.0)
+    )
+
+
 def get_google_llm(
     model_name: str = "gemini-3.8-flash",
     temperature: float | None = None,

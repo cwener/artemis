@@ -35,9 +35,13 @@ from jinja2 import Template
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 from artemis.context import ArtemisContext
-from artemis.llm.google import is_gemini_model
+
 from artemis.memory.step_memory import JobKey, StepMemoryService
-from artemis.services.llm import RobustChatModelWrapper, get_google_llm, get_llm
+from artemis.services.llm import (
+    RobustChatModelWrapper,
+    get_google_llm,
+    get_lens_llm,
+)
 from artemis.services.token_meter import record_llm_usage
 from artemis.utils.logger import get_logger
 from artemis.utils.task_tree import format_actions_clean
@@ -166,15 +170,11 @@ class VisualStepSummarizer(StepMemoryService):
         target_model = model_name or "gemini-2.5-flash-lite"
         self._model_name = target_model
         try:
-            if is_gemini_model(target_model):
-                self._llm = get_google_llm(model_name=target_model, temperature=0.0)
-            else:
-                self._llm = get_llm(ctx, name="summarizer", is_utils=False)
+            self._llm = get_lens_llm(ctx, target_model)
         except Exception:
-            if is_gemini_model(target_model):
-                self._llm = get_google_llm(model_name=target_model, temperature=0.0)
-            else:
-                raise
+            # Last-resort fallback: the raw google path, which is what this
+            # lens used exclusively before it became provider-aware.
+            self._llm = get_google_llm(model_name=target_model, temperature=0.0)
         try:
             configured = getattr(self._llm, "model", None) or getattr(self._llm, "model_name", None)
             if isinstance(configured, str) and configured:

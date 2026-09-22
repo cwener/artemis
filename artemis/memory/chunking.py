@@ -45,7 +45,7 @@ from uuid import uuid4
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-from artemis.llm.google import is_gemini_model, is_google_provider
+from artemis.llm.google import is_google_provider
 from artemis.memory.step_memory import JobKey, StepLens, StepMemoryService
 from artemis.memory.transcript import format_session_offset
 from artemis.utils.logger import get_logger
@@ -336,17 +336,13 @@ class StepCapsuleLens(StepLens):
 
         The lens used to ride the raw ``get_google_llm`` path unconditionally,
         which made every non-Gemini configuration fail at the first chunk
-        close. Gemini names keep that path unchanged; anything else goes
-        through the provider-aware service layer, which resolves the
-        ``summarizer`` role (and therefore the configured provider). Note that
-        on that path ``chunking.model`` is advisory: the service layer keys
-        off the node name, not the model string handed in here.
+        close. :func:`~artemis.services.llm.get_lens_llm` keeps Gemini names on
+        that path and builds everything else from the summarizer role's
+        provider, so ``chunking.model`` still selects the model.
         """
-        from artemis.services.llm import get_google_llm, get_llm
+        from artemis.services.llm import get_lens_llm
 
-        if is_gemini_model(model_name):
-            return get_google_llm(model_name=model_name, temperature=0.0)
-        return get_llm(self._ctx, name="summarizer", is_utils=False)
+        return get_lens_llm(self._ctx, model_name)
 
     @property
     def has_fallback(self) -> bool:
