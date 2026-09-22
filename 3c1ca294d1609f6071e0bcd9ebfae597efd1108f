@@ -1,0 +1,52 @@
+artemis/config/llm.py
+  86cfe4754e7d2a64 263-268
+artemis/agents/checker/checker.py
+  86cfe4754e7d2a64 52-57,425-450,452-453,455
+artemis/services/llm.py
+  86cfe4754e7d2a64 526-538,613-621,903,914-920,922-932
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "3c1ca294d1609f6071e0bcd9ebfae597efd1108f",
+  "prompts": {
+    "86cfe4754e7d2a64": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6fafc414-ad65-405c-b14f-6c1ee07b52d7",
+        "model": "deepseek-flash"
+      },
+      "human_author": "chengwen",
+      "messages": [],
+      "total_additions": 207,
+      "total_deletions": 75,
+      "accepted_lines": 131,
+      "overriden_lines": 1,
+      "per_file_stats": {
+        "artemis/graph/graph.py": {
+          "additions": 22,
+          "deletions": 1,
+          "overriden_lines": 1
+        },
+        "artemis/agents/checker/checker.py": {
+          "additions": 69,
+          "deletions": 42,
+          "accepted_lines": 37
+        },
+        "artemis/config/llm.py": {
+          "additions": 6,
+          "accepted_lines": 6
+        },
+        "config/artemis.jsonc": {
+          "additions": 69,
+          "deletions": 32,
+          "accepted_lines": 47
+        },
+        "artemis/services/llm.py": {
+          "additions": 41,
+          "accepted_lines": 41
+        }
+      }
+    }
+  }
+}
