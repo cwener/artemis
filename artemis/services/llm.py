@@ -771,6 +771,12 @@ class RobustChatModelWrapper:
             # unsupported-stream case above does, and use the non-streaming
             # path (which returns the very same completion) from here on.
             if full_response is None:
+                if not classify_failure(stream_error).retryable:
+                    # Auth / bad-request failures classify as permanent: the
+                    # non-streaming replay would fail exactly the same way, so
+                    # downgrading here would only hide the real cause from the
+                    # recovery policy (which raises LLMPermanentError).
+                    raise
                 _NON_STREAMING_ENDPOINTS.add(endpoint_key)
                 llm_logger.warning(
                     f"Endpoint {endpoint_key} stream failed before its first chunk"

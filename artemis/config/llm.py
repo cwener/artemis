@@ -162,12 +162,6 @@ def _expand_default_into_nodes(config_dict: dict) -> dict:
         "history_analyzer_expert",
         "diagnoser_expert",
         "explorer",
-        # Both used to be reachable only through `lightweight_judge_default()`
-        # (hard-wired to a Gemini flash-lite model) because they were missing
-        # from this list: a `nodes` entry for either name was silently dropped,
-        # so a non-Gemini deployment could not point them at a working model.
-        "planner_validation",
-        "validator_pixel_safety_net",
     ]
 
     all_utils_nodes = [
@@ -199,6 +193,25 @@ def _expand_default_into_nodes(config_dict: dict) -> dict:
                     util_cfg[k] = v
         utils_dict[util] = util_cfg
     result["utils"] = utils_dict
+
+    # Optional judge nodes: `planner_validation` and `validator_pixel_safety_net`
+    # are declared as optional on LLMConfig and, left unconfigured, resolve
+    # through the cheap ``lightweight_judge_default()`` (a Gemini flash-lite).
+    # They are deliberately not expanded from ``default`` — that would silently
+    # swap the cheap judge for the agent's main model everywhere. But a
+    # ``nodes`` entry for either name used to be dropped on the floor, so a
+    # non-Gemini deployment could not point them at a working model at all;
+    # honour such an entry when (and only when) the user wrote it.
+    for optional_node in ("planner_validation", "validator_pixel_safety_net"):
+        if optional_node not in nodes_override:
+            continue
+        node_cfg = dict(default_model_cfg)
+        for k, v in nodes_override[optional_node].items():
+            if isinstance(v, dict) and isinstance(node_cfg.get(k), dict):
+                node_cfg[k] = {**node_cfg[k], **v}
+            else:
+                node_cfg[k] = v
+        result[optional_node] = node_cfg
 
     return result
 

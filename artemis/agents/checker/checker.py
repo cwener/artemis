@@ -412,6 +412,19 @@ def _format_check_items(check_items: list) -> str:
 # --- Shared tool loop ----------------------------------------------------------------
 
 
+#: Providers whose client speaks the OpenAI-compatible dialect. Their gateways
+#: implement forced-tool-call structured output only partially, so the checker
+#: requests the verdict as plain JSON there instead.
+_GATEWAY_PROVIDERS = frozenset({"openai", "vllm", "ollama", "custom"})
+
+
+def _is_gateway_llm(llm) -> bool:
+    """True when ``llm`` rides an OpenAI-compatible gateway client."""
+    provider = getattr(getattr(llm, "endpoint", None), "provider", None)
+    value = getattr(provider, "value", provider)
+    return isinstance(value, str) and value in _GATEWAY_PROVIDERS
+
+
 async def _structured_report(llm, messages) -> CheckReport:
     # A conversation must end with a user turn: Gemini rejects requests whose
     # last message is the model's own answer ("Requests ending with a model
@@ -423,16 +436,28 @@ async def _structured_report(llm, messages) -> CheckReport:
             HumanMessage(content="Now provide your structured verdict report."),
         ]
 
-    # The verdict is requested as plain JSON with the schema spelled out and
-    # parsed by the tolerant reader (which repairs, then re-asks once), rather
-    # than through `llm.with_structured_output`. That path forces a tool call,
-    # and the OpenAI-compatible gateways this runs against implement the
-    # dialect only partly: one model answers 5xx to the forced choice, the
-    # other returns a schema-shaped but empty object or fills the wrong
-    # fields. Either way the caller used to fall through to an empty report,
-    # which `_normalize_report` turns into "every check item inconclusive"
-    # while the run still reports success — a verification that verified
-    # nothing, indistinguishable from a clean pass in the run outcome.
+    if not _is_gateway_llm(llm):
+        # Native providers (Gemini) support `with_structured_output`; keep the
+        # original path so behaviour there is unchanged.
+        structured_llm = llm.with_structured_output(CheckReport)
+        result = await invoke_llm_with_timeout_message(structured_llm.ainvoke(messages))
+        if isinstance(result, CheckReport):
+            return result
+        if isinstance(result, dict):
+            try:
+                return CheckReport.model_validate(result)
+            except ValidationError as exc:
+                logger.debug("Structured verdict dict failed CheckReport validation: %s", exc)
+        return CheckReport(verdicts=[])
+
+    # OpenAI-compatible gateways implement the forced-tool-call dialect only
+    # partially: one model answers 5xx to the forced choice, another returns a
+    # schema-shaped but empty object or fills the wrong fields. Either way the
+    # caller used to fall through to an empty report, which `_normalize_report`
+    # turns into "every check item inconclusive" while the run still reports
+    # success — a verification that verified nothing. Request plain JSON with
+    # the schema spelled out and let the tolerant reader (which repairs, then
+    # re-asks once) parse it.
     schema_hint = HumanMessage(
         content=(
             "Reply with one JSON object and nothing else — no prose, no code"
