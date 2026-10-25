@@ -1,0 +1,43 @@
+artemis/services/llm.py
+  86cfe4754e7d2a64 931
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "e10f45402240567988df8b657d616e6f3aae29bc",
+  "prompts": {
+    "86cfe4754e7d2a64": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6fafc414-ad65-405c-b14f-6c1ee07b52d7",
+        "model": "deepseek-flash"
+      },
+      "human_author": "chengwen",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 148,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        "artemis/services/llm.py": {
+          "accepted_lines": 73
+        },
+        "artemis/config/llm.py": {
+          "accepted_lines": 6
+        },
+        "artemis/agents/checker/checker.py": {
+          "accepted_lines": 35
+        },
+        "artemis/memory/chunking.py": {
+          "accepted_lines": 15
+        },
+        "artemis/memory/step_memory.py": {
+          "accepted_lines": 7
+        },
+        "artemis/agents/flash/summarizer.py": {
+          "accepted_lines": 12
+        }
+      }
+    }
+  }
+}
